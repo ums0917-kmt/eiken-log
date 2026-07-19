@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>英検きろく</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f3ee;
+    --surface: #ffffff;
+    --surface2: #f0ede6;
+    --border: #e2ddd5;
+    --text: #1a1714;
+    --text2: #6b6560;
+    --accent: #2d6a4f;
+    --accent2: #52b788;
+    --accent3: #f4a261;
+    --danger: #e63946;
+    --radius: 12px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 40px; }
+  .header { background: var(--accent); color: white; padding: 16px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 16px rgba(45,106,79,0.25); }
+  .header-icon { font-size: 24px; }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header-sub { font-size: 12px; opacity: 0.75; margin-top: 1px; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #95d5b2; margin-left: auto; flex-shrink: 0; transition: background 0.3s; }
+  .sync-dot.syncing { background: var(--accent3); animation: pulse 1s infinite; }
+  .sync-dot.error { background: var(--danger); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .tabs { display: flex; gap: 4px; padding: 16px 20px 0; border-bottom: 2px solid var(--border); background: var(--surface); }
+  .tab-btn { padding: 10px 20px; border: none; background: none; font-family: inherit; font-size: 14px; font-weight: 700; color: var(--text2); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; border-radius: 8px 8px 0 0; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface2); }
+  .container { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+  .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--text); background: var(--bg); outline: none; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent2); background: var(--surface); }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .skill-block { border: 1.5px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; background: var(--surface2); position: relative; }
+  .skill-block-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .skill-num { width: 24px; height: 24px; background: var(--accent); color: white; border-radius: 50%; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .btn { padding: 11px 20px; border: none; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1.5px solid var(--border); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-add { background: var(--accent2); color: white; width: 100%; justify-content: center; margin-bottom: 10px; }
+  .btn-submit { background: var(--accent); color: white; width: 100%; justify-content: center; font-size: 16px; padding: 14px; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-delete-sub { position: absolute; top: 12px; right: 12px; }
+  .star-row { display: flex; gap: 6px; }
+  .star-btn { font-size: 22px; cursor: pointer; background: none; border: none; opacity: 0.3; padding: 2px; }
+  .star-btn.active { opacity: 1; transform: scale(1.1); }
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 10px; text-align: center; }
+  .stat-num { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 500; color: var(--accent); }
+  .stat-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+  .bar-item { display: flex; align-items: center; gap: 10px; }
+  .bar-name { font-size: 12px; font-weight: 700; width: 84px; text-align: right; flex-shrink: 0; }
+  .bar-track { flex: 1; background: var(--surface2); border-radius: 100px; height: 16px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--accent), var(--accent2)); min-width: 4px; }
+  .bar-val { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text2); width: 40px; flex-shrink: 0; }
+  .record-item { border-left: 4px solid var(--accent2); padding: 12px 14px; background: var(--surface2); border-radius: 0 8px 8px 0; margin-bottom: 8px; }
+  .record-item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .record-date { font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
+  .grade-tag { background: var(--accent); color: white; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 100px; }
+  .skill-tag { background: var(--accent3); color: white; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 100px; margin: 2px 4px 0 0; display: inline-block; }
+  .record-note { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .record-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .btn-delete-record { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .empty-state { text-align: center; color: var(--text2); padding: 32px; font-size: 14px; }
+  .loading { text-align: center; padding: 40px; color: var(--text2); font-size: 14px; }
+  .loading-spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--accent); color: white; padding: 12px 24px; border-radius: 100px; font-size: 14px; font-weight: 700; box-shadow: 0 4px 20px rgba(0,0,0,0.2); transition: transform 0.3s; z-index: 999; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .section-title { font-size: 14px; font-weight: 700; color: var(--text2); margin: 20px 0 10px; display: flex; align-items: center; gap: 6px; }
+  .reflect-row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+  .reflect-label { color: var(--text2); font-weight: 700; width: 84px; flex-shrink: 0; }
+  .reflect-value { flex: 1; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-icon">📖</div>
+  <div>
+    <h1>英検きろく</h1>
+    <div class="header-sub" id="sync-label">接続中...</div>
+  </div>
+  <div class="sync-dot syncing" id="sync-dot"></div>
+</div>
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('record')">✏️ 記録</button>
+  <button class="tab-btn" onclick="switchTab('dashboard')">📊 ダッシュボード</button>
+</div>
+<div class="container">
+  <div class="panel active" id="panel-record">
+    <div id="record-form-area">
+      <div class="loading"><div class="loading-spinner"></div>Firebase に接続中...</div>
+    </div>
+  </div>
+  <div class="panel" id="panel-dashboard">
+    <div id="dashboard-area">
+      <div class="loading"><div class="loading-spinner"></div>データを読み込み中...</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, deleteDoc, doc,
+  onSnapshot, query, orderBy, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// study-log と同じ Firebase プロジェクトを利用し、
+// コレクションだけ分けて英検記録を保存する（eiken_records）
+const firebaseConfig = {
+  apiKey: "AIzaSyCLhG-MzgCLY7Riy5gaJx6xCTG2NWYXRA8",
+  authDomain: "study-log-oshiro.firebaseapp.com",
+  projectId: "study-log-oshiro",
+  storageBucket: "study-log-oshiro.firebasestorage.app",
+  messagingSenderId: "892483175959",
+  appId: "1:892483175959:web:b9e6b54746ace1283a7e52"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// 英検の級
+const GRADES = ['5級','4級','3級','準2級','2級','準1級','1級'];
+// 技能別カテゴリ（Knowledge「03_学習記録仕様」を想定した内訳）
+const SKILLS = ['単語・熟語','文法','長文読解','リスニング','ライティング','二次試験(面接)','過去問・模試','その他'];
+const FEELINGS = ['😞','😐','😊','😄','🤩'];
+
+let records = [];
+let skillCount = 0;
+let feelings = {};
+
+const q = query(collection(db, "eiken_records"), orderBy("timestamp", "desc"));
+onSnapshot(q, (snapshot) => {
+  records = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  setSynced();
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab && activeTab.textContent.includes('ダッシュボード')) renderDashboard();
+}, (err) => { setError(); showToast('⚠️ 接続エラー: ' + err.message); });
+
+function setSynced() { document.getElementById('sync-dot').className = 'sync-dot'; document.getElementById('sync-label').textContent = 'クラウド同期中'; }
+function setError() { document.getElementById('sync-dot').className = 'sync-dot error'; document.getElementById('sync-label').textContent = '接続エラー'; }
+
+window.switchTab = function(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', ['record','dashboard'][i] === tab));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+tab).classList.add('active');
+  if (tab === 'dashboard') renderDashboard();
+};
+
+function getTodayStr() {
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function buildForm() {
+  skillCount = 0;
+  feelings = {};
+  document.getElementById('record-form-area').innerHTML = `
+    <div class="card">
+      <div class="field">
+        <label>📅 日付</label>
+        <input type="date" id="date-input">
+      </div>
+      <div class="field">
+        <label>🎯 受験級</label>
+        <select id="grade-input">${GRADES.map(g=>`<option value="${g}">${g}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div id="skill-block-list"></div>
+    <button class="btn btn-add" onclick="addSkill()">＋ 技能を追加</button>
+    <div class="card">
+      <div class="card-title">振り返り</div>
+      <div class="field"><label>できたこと</label><textarea id="r-good" placeholder="例: 長文の速読ができた"></textarea></div>
+      <div class="field"><label>難しかったこと</label><textarea id="r-hard" placeholder="例: リスニングの後半で集中が切れた"></textarea></div>
+      <div class="field"><label>次回目標</label><textarea id="r-next" placeholder="例: 単語帳を1周する"></textarea></div>
+    </div>
+    <button class="btn btn-submit" onclick="submitRecord()">✅ 送信</button>`;
+  document.getElementById('date-input').value = getTodayStr();
+  addSkill();
+}
+
+window.addSkill = function() {
+  skillCount++;
+  const id = skillCount;
+  feelings[id] = null;
+  const list = document.getElementById('skill-block-list');
+  const div = document.createElement('div');
+  div.className = 'skill-block';
+  div.id = 'skill-' + id;
+  div.innerHTML = `
+    <div class="skill-block-header">
+      <div class="skill-num">${id}</div>
+      <select id="skill-name-${id}">${SKILLS.map(s=>`<option value="${s}">${s}</option>`).join('')}</select>
+    </div>
+    <button class="btn btn-secondary btn-sm btn-delete-sub" onclick="removeSkill(${id})">✕</button>
+    <div class="field"><label>やったこと</label><input type="text" id="skill-content-${id}" placeholder="例: 過去問 大問1〜3"></div>
+    <div class="field"><label>学習時間（分）</label><input type="number" id="skill-minutes-${id}" min="0" max="600" placeholder="例: 30"></div>
+    <div class="field"><label>達成感</label><div class="star-row" id="skill-feeling-${id}"></div></div>
+    <div class="field"><label>感想・メモ</label><textarea id="skill-memo-${id}" placeholder="任意"></textarea></div>`;
+  list.appendChild(div);
+  const row = document.getElementById('skill-feeling-'+id);
+  FEELINGS.forEach((f,i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'star-btn'; b.textContent = f;
+    b.onclick = () => { feelings[id] = i; row.querySelectorAll('.star-btn').forEach((el,j)=>el.classList.toggle('active', j===i)); };
+    row.appendChild(b);
+  });
+};
+
+window.removeSkill = function(id) {
+  const el = document.getElementById('skill-'+id);
+  if (el) el.remove();
+  delete feelings[id];
+};
+
+window.submitRecord = async function() {
+  const date = document.getElementById('date-input').value;
+  if (!date) { showToast('⚠️ 日付を入力してください'); return; }
+  const grade = document.getElementById('grade-input').value;
+  const blocks = document.querySelectorAll('.skill-block');
+  if (blocks.length === 0) { showToast('⚠️ 技能を1つ以上追加してください'); return; }
+  const skills = [];
+  blocks.forEach(b => {
+    const id = b.id.split('-')[1];
+    skills.push({
+      skill: document.getElementById('skill-name-'+id).value,
+      content: document.getElementById('skill-content-'+id).value,
+      minutes: Number(document.getElementById('skill-minutes-'+id).value) || 0,
+      feeling: feelings[id],
+      memo: document.getElementById('skill-memo-'+id).value
+    });
+  });
+  const reflection = {
+    good: document.getElementById('r-good').value,
+    hard: document.getElementById('r-hard').value,
+    next: document.getElementById('r-next').value
+  };
+  try {
+    await addDoc(collection(db, "eiken_records"), {
+      date, grade, skills, reflection, timestamp: serverTimestamp()
+    });
+    showToast('✅ 記録を保存しました');
+    buildForm();
+  } catch (e) {
+    showToast('⚠️ 保存エラー: ' + e.message);
+  }
+};
+
+window.deleteRecord = async function(id) {
+  if (!confirm('この記録を削除しますか？')) return;
+  try {
+    await deleteDoc(doc(db, "eiken_records", id));
+    showToast('🗑️ 削除しました');
+  } catch (e) {
+    showToast('⚠️ 削除エラー: ' + e.message);
+  }
+};
+
+function renderDashboard() {
+  const area = document.getElementById('dashboard-area');
+  if (records.length === 0) {
+    area.innerHTML = `<div class="empty-state">まだ記録がありません。<br>「記録」タブから最初の学習を記録しましょう。</div>`;
+    return;
+  }
+  const totalMinutes = records.reduce((sum,r) => sum + (r.skills||[]).reduce((s,sk)=>s+(sk.minutes||0),0), 0);
+  const totalDays = new Set(records.map(r=>r.date)).size;
+  const totalSkillEntries = records.reduce((sum,r)=>sum+(r.skills||[]).length, 0);
+
+  const skillMinutes = {};
+  SKILLS.forEach(s => skillMinutes[s] = 0);
+  records.forEach(r => (r.skills||[]).forEach(sk => { skillMinutes[sk.skill] = (skillMinutes[sk.skill]||0) + (sk.minutes||0); }));
+  const maxMin = Math.max(1, ...Object.values(skillMinutes));
+
+  let html = `
+    <div class="stat-row">
+      <div class="stat-box"><div class="stat-num">${totalDays}</div><div class="stat-label">記録日数</div></div>
+      <div class="stat-box"><div class="stat-num">${Math.round(totalMinutes/60*10)/10}</div><div class="stat-label">合計時間(h)</div></div>
+      <div class="stat-box"><div class="stat-num">${totalSkillEntries}</div><div class="stat-label">技能記録数</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">技能別 学習時間</div>
+      <div class="bar-chart">
+        ${SKILLS.map(s => `<div class="bar-item">
+          <div class="bar-name">${s}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(skillMinutes[s]/maxMin*100)}%"></div></div>
+          <div class="bar-val">${skillMinutes[s]}分</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="section-title">📋 記録一覧</div>`;
+
+  records.forEach(r => {
+    const feelingIcons = (r.skills||[]).map(sk => sk.feeling!=null ? FEELINGS[sk.feeling] : '').filter(Boolean).join(' ');
+    html += `<div class="record-item">
+      <div class="record-item-header">
+        <div>
+          <span class="record-date">${r.date}</span>
+          <span class="grade-tag">${r.grade||''}</span>
+        </div>
+        <div>${feelingIcons}</div>
+      </div>
+      <div>${(r.skills||[]).map(sk => `<span class="skill-tag">${sk.skill}${sk.minutes?'・'+sk.minutes+'分':''}</span>`).join('')}</div>
+      ${r.reflection && (r.reflection.good||r.reflection.hard||r.reflection.next) ? `
+        <div class="reflect-row"><div class="reflect-label">できたこと</div><div class="reflect-value">${r.reflection.good||'-'}</div></div>
+        <div class="reflect-row"><div class="reflect-label">難しかった</div><div class="reflect-value">${r.reflection.hard||'-'}</div></div>
+        <div class="reflect-row"><div class="reflect-label">次回目標</div><div class="reflect-value">${r.reflection.next||'-'}</div></div>
+      ` : ''}
+      <div class="record-footer"><button class="btn-delete-record" onclick="deleteRecord('${r.id}')">削除</button></div>
+    </div>`;
+  });
+
+  area.innerHTML = html;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+buildForm();
+</script>
+</body>
+</html>
