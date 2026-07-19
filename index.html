@@ -177,7 +177,7 @@ function buildForm() {
       </div>
       <div class="field">
         <label>🎯 受験級</label>
-        <select id="grade-input">${GRADES.map(g=>`<option value="${g}">${g}</option>`).join('')}</select>
+        <select id="grade-input">${GRADES.map(g=>`<option value="${g}"${g==='準1級'?' selected':''}>${g}</option>`).join('')}</select>
       </div>
     </div>
     <div id="skill-block-list"></div>
