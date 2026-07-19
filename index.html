@@ -84,9 +84,14 @@
   .reflect-row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; }
   .reflect-label { color: var(--text2); font-weight: 700; width: 84px; flex-shrink: 0; }
   .reflect-value { flex: 1; white-space: pre-wrap; }
-  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .cal-nav-title { font-size: 15px; font-weight: 700; }
-  .cal-nav-btn { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; }
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+  .cal-nav-title-wrap { text-align: center; }
+  .cal-nav-title { font-size: 15px; font-weight: 700; background: none; border: none; font-family: inherit; color: var(--text); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .cal-nav-title:hover { background: var(--surface2); }
+  .cal-month-total { font-size: 11px; color: var(--accent); font-weight: 700; margin-top: 2px; }
+  .cal-nav-btn { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; flex-shrink: 0; }
+  .cal-picker-row { justify-content: center; margin-bottom: 12px; }
+  .cal-picker-row input[type="month"] { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--text); background: var(--bg); outline: none; }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .cal-header { font-size: 11px; font-weight: 700; color: var(--text2); text-align: center; padding: 4px 0; }
   .cal-day { aspect-ratio: 1; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; background: var(--surface2); color: var(--text2); position: relative; }
@@ -340,6 +345,10 @@ function renderCalendarHtml() {
   const minutesByDate = {};
   records.forEach(r => { minutesByDate[r.date] = (minutesByDate[r.date]||0) + getDayMinutes(r); });
 
+  const ym = calViewYear+'-'+String(calViewMonth+1).padStart(2,'0');
+  const monthTotal = records.filter(r => (r.date||'').startsWith(ym)).reduce((s,r)=>s+getDayMinutes(r), 0);
+  const monthTotalLabel = monthTotal === 0 ? '記録なし' : (monthTotal >= 60 ? `${Math.floor(monthTotal/60)}時間${monthTotal%60}分` : `${monthTotal}分`);
+
   let cells = '';
   for (let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
   for (let d=1; d<=daysInMonth; d++) {
@@ -367,8 +376,14 @@ function renderCalendarHtml() {
   return `<div class="card">
     <div class="cal-nav">
       <button class="cal-nav-btn" onclick="shiftCalMonth(-1)">◀ 前月</button>
-      <div class="cal-nav-title">${calViewYear}年${calViewMonth+1}月</div>
+      <div class="cal-nav-title-wrap">
+        <button class="cal-nav-title" onclick="toggleCalPicker()">${calViewYear}年${calViewMonth+1}月 ▾</button>
+        <div class="cal-month-total">${monthTotalLabel}</div>
+      </div>
       <button class="cal-nav-btn" onclick="shiftCalMonth(1)">翌月 ▶</button>
+    </div>
+    <div class="cal-picker-row" id="cal-picker-row" style="display:none">
+      <input type="month" id="cal-month-input" value="${ym}" onchange="jumpToCalMonth(this.value)">
     </div>
     <div class="cal-grid">
       ${dowNames.map(n=>`<div class="cal-header">${n}</div>`).join('')}
@@ -382,6 +397,21 @@ window.shiftCalMonth = function(diff) {
   calViewMonth += diff;
   if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
   if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+  selectedCalDate = null;
+  renderDashboard();
+};
+
+window.toggleCalPicker = function() {
+  const row = document.getElementById('cal-picker-row');
+  if (!row) return;
+  row.style.display = (row.style.display === 'none') ? 'flex' : 'none';
+};
+
+window.jumpToCalMonth = function(value) {
+  if (!value) return;
+  const [y, m] = value.split('-').map(Number);
+  calViewYear = y;
+  calViewMonth = m - 1;
   selectedCalDate = null;
   renderDashboard();
 };
@@ -441,53 +471,4 @@ function renderDashboard() {
         </div>`).join('')}
       </div>
     </div>
-    <button class="btn btn-secondary" style="width:100%;justify-content:center;margin-bottom:16px;" onclick="exportMarkdown()">📄 Markdownで書き出す</button>
-    <div class="section-title">📋 記録一覧</div>`;
-
-  records.forEach(r => { html += renderRecordItem(r); });
-
-  area.innerHTML = html;
-}
-
-window.exportMarkdown = function() {
-  if (records.length === 0) { showToast('⚠️ 書き出す記録がありません'); return; }
-  const sorted = [...records].sort((a,b) => (a.date||'').localeCompare(b.date||''));
-  let md = `# 英検学習記録\n\n書き出し日: ${getTodayStr()}\n\n`;
-  sorted.forEach(r => {
-    md += `## ${r.date}（${r.grade||''}）\n\n`;
-    (r.skills||[]).forEach(sk => {
-      const feeling = sk.feeling!=null ? FEELINGS[sk.feeling] : '';
-      md += `- **${sk.skill}**${sk.content ? '：' + sk.content : ''}${sk.minutes ? '（' + sk.minutes + '分）' : ''} ${feeling}\n`;
-      if (sk.memo) md += `  - メモ: ${sk.memo}\n`;
-    });
-    if (r.reflection && (r.reflection.good || r.reflection.hard || r.reflection.next)) {
-      md += `\n**振り返り**\n`;
-      md += `- できたこと: ${r.reflection.good || '-'}\n`;
-      md += `- 難しかったこと: ${r.reflection.hard || '-'}\n`;
-      md += `- 次回目標: ${r.reflection.next || '-'}\n`;
-    }
-    md += `\n`;
-  });
-  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `eiken-study-log_${getTodayStr()}.md`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('📄 Markdownを書き出しました');
-};
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
-}
-
-buildForm();
-</script>
-</body>
-</html>
+    <button class="btn btn-secondary" style="width:100%;justify-content:center;margin-bottom:16p
