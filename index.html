@@ -84,6 +84,23 @@
   .reflect-row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; }
   .reflect-label { color: var(--text2); font-weight: 700; width: 84px; flex-shrink: 0; }
   .reflect-value { flex: 1; white-space: pre-wrap; }
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-nav-title { font-size: 15px; font-weight: 700; }
+  .cal-nav-btn { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-header { font-size: 11px; font-weight: 700; color: var(--text2); text-align: center; padding: 4px 0; }
+  .cal-day { aspect-ratio: 1; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; background: var(--surface2); color: var(--text2); position: relative; }
+  .cal-day.has-record { background: var(--accent); color: white; font-weight: 700; cursor: pointer; }
+  .cal-day.has-record:hover { background: #235c41; }
+  .cal-day.selected { outline: 2px solid var(--accent3); outline-offset: -2px; }
+  .cal-day.today { box-shadow: inset 0 0 0 2px var(--accent3); }
+  .cal-day.empty { background: none; }
+  .cal-day-min { font-size: 9px; opacity: 0.85; margin-top: 1px; }
+  .filter-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .filter-btn { flex: 1; padding: 9px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface2); font-family: inherit; font-size: 13px; font-weight: 700; color: var(--text2); cursor: pointer; }
+  .filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .cal-detail { border-top: 2px dashed var(--border); margin-top: 14px; padding-top: 14px; }
+  .cal-detail-title { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -142,6 +159,9 @@ const FEELINGS = ['😞','😐','😊','😄','🤩'];
 let records = [];
 let skillCount = 0;
 let feelings = {};
+let calViewYear, calViewMonth;
+let selectedCalDate = null;
+let dashboardFilter = 'all'; // 'all' | 'month' | 'week'
 
 const q = query(collection(db, "eiken_records"), orderBy("timestamp", "desc"));
 onSnapshot(q, (snapshot) => {
@@ -270,29 +290,149 @@ window.deleteRecord = async function(id) {
   }
 };
 
+function getDayMinutes(r) {
+  return (r.skills||[]).reduce((s,sk)=>s+(sk.minutes||0),0);
+}
+
+function getFilteredRecords(filter) {
+  if (filter === 'all') return records;
+  const today = new Date();
+  if (filter === 'month') {
+    const ym = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+    return records.filter(r => (r.date||'').startsWith(ym));
+  }
+  if (filter === 'week') {
+    const start = new Date(today); start.setDate(start.getDate()-6);
+    const startStr = start.getFullYear()+'-'+String(start.getMonth()+1).padStart(2,'0')+'-'+String(start.getDate()).padStart(2,'0');
+    const todayStr = getTodayStr();
+    return records.filter(r => r.date >= startStr && r.date <= todayStr);
+  }
+  return records;
+}
+
+function renderRecordItem(r) {
+  const feelingIcons = (r.skills||[]).map(sk => sk.feeling!=null ? FEELINGS[sk.feeling] : '').filter(Boolean).join(' ');
+  return `<div class="record-item">
+    <div class="record-item-header">
+      <div>
+        <span class="record-date">${r.date}</span>
+        <span class="grade-tag">${r.grade||''}</span>
+      </div>
+      <div>${feelingIcons}</div>
+    </div>
+    <div>${(r.skills||[]).map(sk => `<span class="skill-tag">${sk.skill}${sk.minutes?'・'+sk.minutes+'分':''}</span>`).join('')}</div>
+    ${r.reflection && (r.reflection.good||r.reflection.hard||r.reflection.next) ? `
+      <div class="reflect-row"><div class="reflect-label">できたこと</div><div class="reflect-value">${r.reflection.good||'-'}</div></div>
+      <div class="reflect-row"><div class="reflect-label">難しかった</div><div class="reflect-value">${r.reflection.hard||'-'}</div></div>
+      <div class="reflect-row"><div class="reflect-label">次回目標</div><div class="reflect-value">${r.reflection.next||'-'}</div></div>
+    ` : ''}
+    <div class="record-footer"><button class="btn-delete-record" onclick="deleteRecord('${r.id}')">削除</button></div>
+  </div>`;
+}
+
+function renderCalendarHtml() {
+  const dowNames = ['日','月','火','水','木','金','土'];
+  const first = new Date(calViewYear, calViewMonth, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(calViewYear, calViewMonth+1, 0).getDate();
+  const todayStr = getTodayStr();
+
+  const minutesByDate = {};
+  records.forEach(r => { minutesByDate[r.date] = (minutesByDate[r.date]||0) + getDayMinutes(r); });
+
+  let cells = '';
+  for (let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
+  for (let d=1; d<=daysInMonth; d++) {
+    const dateStr = calViewYear+'-'+String(calViewMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const hasRecord = minutesByDate[dateStr] != null;
+    const cls = ['cal-day'];
+    if (hasRecord) cls.push('has-record');
+    if (dateStr === todayStr) cls.push('today');
+    if (dateStr === selectedCalDate) cls.push('selected');
+    cells += `<div class="${cls.join(' ')}" ${hasRecord ? `onclick="selectCalDate('${dateStr}')"` : ''}>
+      <div>${d}</div>
+      ${hasRecord ? `<div class="cal-day-min">${minutesByDate[dateStr]}分</div>` : ''}
+    </div>`;
+  }
+
+  let detailHtml = '';
+  if (selectedCalDate) {
+    const dayRecords = records.filter(r => r.date === selectedCalDate);
+    detailHtml = `<div class="cal-detail">
+      <div class="cal-detail-title">📅 ${selectedCalDate} の記録</div>
+      ${dayRecords.length ? dayRecords.map(renderRecordItem).join('') : `<div class="empty-state">記録がありません</div>`}
+    </div>`;
+  }
+
+  return `<div class="card">
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="shiftCalMonth(-1)">◀ 前月</button>
+      <div class="cal-nav-title">${calViewYear}年${calViewMonth+1}月</div>
+      <button class="cal-nav-btn" onclick="shiftCalMonth(1)">翌月 ▶</button>
+    </div>
+    <div class="cal-grid">
+      ${dowNames.map(n=>`<div class="cal-header">${n}</div>`).join('')}
+      ${cells}
+    </div>
+    ${detailHtml}
+  </div>`;
+}
+
+window.shiftCalMonth = function(diff) {
+  calViewMonth += diff;
+  if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+  if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+  selectedCalDate = null;
+  renderDashboard();
+};
+
+window.selectCalDate = function(dateStr) {
+  selectedCalDate = (selectedCalDate === dateStr) ? null : dateStr;
+  renderDashboard();
+};
+
+window.setDashboardFilter = function(filter) {
+  dashboardFilter = filter;
+  renderDashboard();
+};
+
 function renderDashboard() {
   const area = document.getElementById('dashboard-area');
   if (records.length === 0) {
     area.innerHTML = `<div class="empty-state">まだ記録がありません。<br>「記録」タブから最初の学習を記録しましょう。</div>`;
     return;
   }
-  const totalMinutes = records.reduce((sum,r) => sum + (r.skills||[]).reduce((s,sk)=>s+(sk.minutes||0),0), 0);
-  const totalDays = new Set(records.map(r=>r.date)).size;
-  const totalSkillEntries = records.reduce((sum,r)=>sum+(r.skills||[]).length, 0);
+  if (calViewYear === undefined) {
+    const now = new Date();
+    calViewYear = now.getFullYear();
+    calViewMonth = now.getMonth();
+  }
+
+  const filtered = getFilteredRecords(dashboardFilter);
+  const totalMinutes = filtered.reduce((sum,r) => sum + getDayMinutes(r), 0);
+  const totalDays = new Set(filtered.map(r=>r.date)).size;
+  const totalSkillEntries = filtered.reduce((sum,r)=>sum+(r.skills||[]).length, 0);
 
   const skillMinutes = {};
   SKILLS.forEach(s => skillMinutes[s] = 0);
-  records.forEach(r => (r.skills||[]).forEach(sk => { skillMinutes[sk.skill] = (skillMinutes[sk.skill]||0) + (sk.minutes||0); }));
+  filtered.forEach(r => (r.skills||[]).forEach(sk => { skillMinutes[sk.skill] = (skillMinutes[sk.skill]||0) + (sk.minutes||0); }));
   const maxMin = Math.max(1, ...Object.values(skillMinutes));
 
-  let html = `
+  const filterLabels = { all: '全体', month: '今月', week: '今週' };
+
+  let html = renderCalendarHtml();
+
+  html += `
+    <div class="filter-row">
+      ${Object.keys(filterLabels).map(f => `<button class="filter-btn ${dashboardFilter===f?'active':''}" onclick="setDashboardFilter('${f}')">${filterLabels[f]}</button>`).join('')}
+    </div>
     <div class="stat-row">
       <div class="stat-box"><div class="stat-num">${totalDays}</div><div class="stat-label">記録日数</div></div>
       <div class="stat-box"><div class="stat-num">${Math.round(totalMinutes/60*10)/10}</div><div class="stat-label">合計時間(h)</div></div>
       <div class="stat-box"><div class="stat-num">${totalSkillEntries}</div><div class="stat-label">技能記録数</div></div>
     </div>
     <div class="card">
-      <div class="card-title">技能別 学習時間</div>
+      <div class="card-title">技能別 学習時間（${filterLabels[dashboardFilter]}）</div>
       <div class="bar-chart">
         ${SKILLS.map(s => `<div class="bar-item">
           <div class="bar-name">${s}</div>
@@ -304,25 +444,7 @@ function renderDashboard() {
     <button class="btn btn-secondary" style="width:100%;justify-content:center;margin-bottom:16px;" onclick="exportMarkdown()">📄 Markdownで書き出す</button>
     <div class="section-title">📋 記録一覧</div>`;
 
-  records.forEach(r => {
-    const feelingIcons = (r.skills||[]).map(sk => sk.feeling!=null ? FEELINGS[sk.feeling] : '').filter(Boolean).join(' ');
-    html += `<div class="record-item">
-      <div class="record-item-header">
-        <div>
-          <span class="record-date">${r.date}</span>
-          <span class="grade-tag">${r.grade||''}</span>
-        </div>
-        <div>${feelingIcons}</div>
-      </div>
-      <div>${(r.skills||[]).map(sk => `<span class="skill-tag">${sk.skill}${sk.minutes?'・'+sk.minutes+'分':''}</span>`).join('')}</div>
-      ${r.reflection && (r.reflection.good||r.reflection.hard||r.reflection.next) ? `
-        <div class="reflect-row"><div class="reflect-label">できたこと</div><div class="reflect-value">${r.reflection.good||'-'}</div></div>
-        <div class="reflect-row"><div class="reflect-label">難しかった</div><div class="reflect-value">${r.reflection.hard||'-'}</div></div>
-        <div class="reflect-row"><div class="reflect-label">次回目標</div><div class="reflect-value">${r.reflection.next||'-'}</div></div>
-      ` : ''}
-      <div class="record-footer"><button class="btn-delete-record" onclick="deleteRecord('${r.id}')">削除</button></div>
-    </div>`;
-  });
+  records.forEach(r => { html += renderRecordItem(r); });
 
   area.innerHTML = html;
 }
