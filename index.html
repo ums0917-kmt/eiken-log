@@ -471,4 +471,53 @@ function renderDashboard() {
         </div>`).join('')}
       </div>
     </div>
-    <button class="btn btn-secondary" style="width:100%;justify-content:center;margin-bottom:16p
+    <button class="btn btn-secondary" style="width:100%;justify-content:center;margin-bottom:16px;" onclick="exportMarkdown()">📄 Markdownで書き出す</button>
+    <div class="section-title">📋 記録一覧</div>`;
+
+  records.forEach(r => { html += renderRecordItem(r); });
+
+  area.innerHTML = html;
+}
+
+window.exportMarkdown = function() {
+  if (records.length === 0) { showToast('⚠️ 書き出す記録がありません'); return; }
+  const sorted = [...records].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  let md = `# 英検学習記録\n\n書き出し日: ${getTodayStr()}\n\n`;
+  sorted.forEach(r => {
+    md += `## ${r.date}（${r.grade||''}）\n\n`;
+    (r.skills||[]).forEach(sk => {
+      const feeling = sk.feeling!=null ? FEELINGS[sk.feeling] : '';
+      md += `- **${sk.skill}**${sk.content ? '：' + sk.content : ''}${sk.minutes ? '（' + sk.minutes + '分）' : ''} ${feeling}\n`;
+      if (sk.memo) md += `  - メモ: ${sk.memo}\n`;
+    });
+    if (r.reflection && (r.reflection.good || r.reflection.hard || r.reflection.next)) {
+      md += `\n**振り返り**\n`;
+      md += `- できたこと: ${r.reflection.good || '-'}\n`;
+      md += `- 難しかったこと: ${r.reflection.hard || '-'}\n`;
+      md += `- 次回目標: ${r.reflection.next || '-'}\n`;
+    }
+    md += `\n`;
+  });
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `eiken-study-log_${getTodayStr()}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📄 Markdownを書き出しました');
+};
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+buildForm();
+</script>
+</body>
+</html>
