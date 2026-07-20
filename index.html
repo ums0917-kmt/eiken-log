@@ -106,6 +106,12 @@
   .filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
   .cal-detail { border-top: 2px dashed var(--border); margin-top: 14px; padding-top: 14px; }
   .cal-detail-title { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+  .schedule-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .schedule-table th, .schedule-table td { text-align: center; padding: 8px 2px; font-size: 12px; border-bottom: 1px solid var(--border); }
+  .schedule-table th { color: var(--text2); font-weight: 700; }
+  .schedule-task-name { text-align: left !important; font-weight: 700; font-size: 11px; color: var(--text); white-space: nowrap; }
+  .schedule-table td.today-col, .schedule-table th.today-col { background: #e8f5ee; color: var(--accent); font-weight: 700; border-radius: 4px; }
+  .schedule-table td:not(.schedule-task-name) { color: var(--accent2); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -161,6 +167,15 @@ const GRADES = ['5級','4級','3級','準2級','2級','準1級','1級'];
 const SKILLS = ['単語・熟語','文法','長文読解','リスニング','ライティング','二次試験(面接)','過去問・模試','その他'];
 const FEELINGS = ['😞','😐','😊','😄','🤩'];
 
+// 曜日ごとのやること（0=日,1=月,...6=土）
+const DOW_LABELS = ['日','月','火','水','木','金','土'];
+const WEEKLY_TASKS = [
+  { name: 'タンザム', days: [0,1,2,3,4,5,6] },
+  { name: '課題ミニテスト', days: [1,4,0] },
+  { name: '段落マッピング', days: [2,5] },
+  { name: '根拠探し', days: [3,6] }
+];
+
 let records = [];
 let skillCount = 0;
 let feelings = {};
@@ -191,10 +206,28 @@ function getTodayStr() {
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
+function buildScheduleTableHtml() {
+  const todayDow = new Date().getDay();
+  const dowOrder = [1,2,3,4,5,6,0]; // 月始まり
+  const head = dowOrder.map(d => `<th class="${d===todayDow?'today-col':''}">${DOW_LABELS[d]}</th>`).join('');
+  const rows = WEEKLY_TASKS.map(t => {
+    const cells = dowOrder.map(d => `<td class="${d===todayDow?'today-col':''}">${t.days.includes(d) ? '○' : ''}</td>`).join('');
+    return `<tr><td class="schedule-task-name">${t.name}</td>${cells}</tr>`;
+  }).join('');
+  return `<div class="card">
+    <div class="card-title">📅 曜日ごとのやること</div>
+    <table class="schedule-table">
+      <thead><tr><th></th>${head}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
 function buildForm() {
   skillCount = 0;
   feelings = {};
   document.getElementById('record-form-area').innerHTML = `
+    ${buildScheduleTableHtml()}
     <div class="card">
       <div class="field">
         <label>📅 日付</label>
