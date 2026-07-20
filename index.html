@@ -66,13 +66,20 @@
   .bar-track { flex: 1; background: var(--surface2); border-radius: 100px; height: 16px; overflow: hidden; }
   .bar-fill { height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--accent), var(--accent2)); min-width: 4px; }
   .bar-val { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text2); width: 40px; flex-shrink: 0; }
-  .record-item { border-left: 4px solid var(--accent2); padding: 12px 14px; background: var(--surface2); border-radius: 0 8px 8px 0; margin-bottom: 8px; }
+  .record-item { border-left: 4px solid var(--accent2); padding: 12px 14px; background: var(--surface2); border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: background 0.15s; }
+  .record-item:hover { background: #e8e3d8; }
   .record-item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .skill-detail-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+  .skill-detail-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .skill-detail-header { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .skill-detail-row { font-size: 12px; color: var(--text); margin-top: 2px; }
+  .skill-detail-label { color: var(--text2); font-weight: 700; margin-right: 6px; }
+  .record-toggle-hint { font-size: 11px; color: var(--text2); }
   .record-date { font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
   .grade-tag { background: var(--accent); color: white; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 100px; }
   .skill-tag { background: var(--accent3); color: white; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 100px; margin: 2px 4px 0 0; display: inline-block; }
   .record-note { font-size: 12px; color: var(--text2); margin-top: 4px; }
-  .record-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .record-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
   .btn-delete-record { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
   .empty-state { text-align: center; color: var(--text2); padding: 32px; font-size: 14px; }
   .loading { text-align: center; padding: 40px; color: var(--text2); font-size: 14px; }
@@ -182,6 +189,7 @@ let feelings = {};
 let calViewYear, calViewMonth;
 let selectedCalDate = null;
 let dashboardFilter = 'all'; // 'all' | 'month' | 'week'
+let expandedRecordId = null;
 
 const q = query(collection(db, "eiken_records"), orderBy("timestamp", "desc"));
 onSnapshot(q, (snapshot) => {
@@ -350,7 +358,19 @@ function getFilteredRecords(filter) {
 
 function renderRecordItem(r) {
   const feelingIcons = (r.skills||[]).map(sk => sk.feeling!=null ? FEELINGS[sk.feeling] : '').filter(Boolean).join(' ');
-  return `<div class="record-item">
+  const expanded = expandedRecordId === r.id;
+
+  const skillsHtml = expanded
+    ? `<div class="skill-detail-list">${(r.skills||[]).map(sk => `
+        <div class="skill-detail-item">
+          <div class="skill-detail-header">${sk.skill} ${sk.feeling!=null ? FEELINGS[sk.feeling] : ''}</div>
+          ${sk.content ? `<div class="skill-detail-row"><span class="skill-detail-label">内容</span>${sk.content}</div>` : ''}
+          ${sk.minutes ? `<div class="skill-detail-row"><span class="skill-detail-label">時間</span>${sk.minutes}分</div>` : ''}
+          ${sk.memo ? `<div class="skill-detail-row"><span class="skill-detail-label">メモ</span>${sk.memo}</div>` : ''}
+        </div>`).join('')}</div>`
+    : `<div>${(r.skills||[]).map(sk => `<span class="skill-tag">${sk.skill}${sk.minutes?'・'+sk.minutes+'分':''}</span>`).join('')}</div>`;
+
+  return `<div class="record-item" onclick="toggleRecordDetail('${r.id}')">
     <div class="record-item-header">
       <div>
         <span class="record-date">${r.date}</span>
@@ -358,15 +378,23 @@ function renderRecordItem(r) {
       </div>
       <div>${feelingIcons}</div>
     </div>
-    <div>${(r.skills||[]).map(sk => `<span class="skill-tag">${sk.skill}${sk.minutes?'・'+sk.minutes+'分':''}</span>`).join('')}</div>
+    ${skillsHtml}
     ${r.reflection && (r.reflection.good||r.reflection.hard||r.reflection.next) ? `
       <div class="reflect-row"><div class="reflect-label">できたこと</div><div class="reflect-value">${r.reflection.good||'-'}</div></div>
       <div class="reflect-row"><div class="reflect-label">難しかった</div><div class="reflect-value">${r.reflection.hard||'-'}</div></div>
       <div class="reflect-row"><div class="reflect-label">次回目標</div><div class="reflect-value">${r.reflection.next||'-'}</div></div>
     ` : ''}
-    <div class="record-footer"><button class="btn-delete-record" onclick="deleteRecord('${r.id}')">削除</button></div>
+    <div class="record-footer">
+      <span class="record-toggle-hint">${expanded ? '▲ 閉じる' : '▼ 詳細を見る'}</span>
+      <button class="btn-delete-record" onclick="event.stopPropagation(); deleteRecord('${r.id}')">削除</button>
+    </div>
   </div>`;
 }
+
+window.toggleRecordDetail = function(id) {
+  expandedRecordId = (expandedRecordId === id) ? null : id;
+  renderDashboard();
+};
 
 function renderCalendarHtml() {
   const dowNames = ['日','月','火','水','木','金','土'];
